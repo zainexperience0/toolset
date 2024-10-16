@@ -1,109 +1,92 @@
 import { nanoid } from "nanoid";
 import { z } from "zod";
 
-export function validateUrl(
-  patterns: Array<string> | undefined,
-  url: string | undefined
-): boolean {
-  // Log the input values
-  console.log("Received patterns:", patterns);
-  console.log("Received url:", url);
-
+// Validate URL against provided patterns
+export function validateUrl(patterns: string[], url: string) {
   if (!url || !patterns) {
-    console.log("Either the url or patterns is undefined or empty");
+    console.warn("Either the URL or patterns are undefined or empty");
     return false;
   }
 
-  // Escape special characters in the patterns for regex
-  const regexPattern = patterns?.map((pattern) => {
-    const escapedPattern = pattern
-      .replace(/\*/g, ".*")
-      .replace(/[.+?^${}()|[\]\\]/g, "\\$&");
-    console.log("Escaped pattern:", escapedPattern);
-    return escapedPattern;
-  });
+  const regexPattern = patterns.map((pattern) =>
+    pattern.replace(/\*/g, ".*").replace(/[.+?^${}()|[\]\\]/g, "\\$&")
+  );
 
-  // Log the generated regex
   const regex = new RegExp(`^(${regexPattern.join("|")})`);
-  console.log("Generated regex:", regex);
+  return regex.test(url);
+}
 
-  // Test the URL against the regex and log the result
-  const result = regex.test(url);
-  console.log("Regex test result:", result);
+// Function to get current tab info
+async function getCurrentTab() {
+  const [currentTab] = await chrome.tabs.query({
+    active: true,
+    currentWindow: true,
+  });
+  return currentTab;
+}
 
-  return result;
+// Function to execute script in current tab
+async function executeScriptInCurrentTab(func: any) {
+  const { id: tabId, url }: any = await getCurrentTab();
+
+  if (
+    !tabId ||
+    !validateUrl(
+      toolSpecifications.find((tool: any) => tool.slug === "get_yt_sub")
+        ?.urlPattern,
+      url
+    )
+  ) {
+    throw new Error("Opened website is not supported for getting YT subtitles");
+  }
+
+  return await chrome.scripting.executeScript({
+    target: { tabId },
+    func,
+    world: "MAIN",
+  });
 }
 
 // Function to fetch YouTube subtitles
 export async function getYTSubtitles() {
   try {
-    const [currentTab] = await chrome.tabs.query({
-      active: true,
-      currentWindow: true,
-    });
-    const tabId = currentTab.id;
-    const url = currentTab.url;
+    const result = await executeScriptInCurrentTab(async () => {
+      async function scrapeYTSubtitles(langCode = "en") {
+        const responseText = await (await fetch(window.location.href)).text();
+        const captionsData = JSON.parse(
+          responseText.split("ytInitialPlayerResponse = ")[1].split(";var")[0]
+        );
+        const captionTracks =
+          captionsData.captions.playerCaptionsTracklistRenderer.captionTracks;
 
-    if (
-      !tabId ||
-      !validateUrl(
-        toolSpecifications.find((tool) => tool.slug === "get_yt_sub")
-          ?.urlPattern,
-        url
-      )
-    ) {
-      throw new Error(
-        "Opened Website is not supported for getting YT Subtitles"
-      );
-    }
+        const findCaptionUrl = (langCode: any) =>
+          captionTracks.find((track: any) => track.vssId.startsWith(langCode))
+            ?.baseUrl;
 
-    // Inject script to fetch subtitles
-    const result = await chrome.scripting.executeScript({
-      target: { tabId },
-      func: async () => {
-        async function scrapeYTsubtitles(langCode = "en") {
-          const responseText = await (await fetch(window.location.href)).text();
-          const captionsData = JSON.parse(
-            responseText.split("ytInitialPlayerResponse = ")[1].split(";var")[0]
-          );
-          const captionTracks =
-            captionsData.captions.playerCaptionsTracklistRenderer.captionTracks;
+        let url =
+          findCaptionUrl(`.${langCode}`) ||
+          findCaptionUrl(".") ||
+          findCaptionUrl(`a.${langCode}`) ||
+          captionTracks[0].baseUrl;
 
-          const findCaptionUrl = (langCode = "en") =>
-            captionTracks.find((track: any) => track.vssId.startsWith(langCode))
-              ?.baseUrl;
+        url += `&fmt=json3&tlang=${langCode}`;
+        const captionEvents = (await (await fetch(url)).json()).events;
 
-          let url =
-            findCaptionUrl("." + langCode) ||
-            findCaptionUrl(".") ||
-            findCaptionUrl("a." + langCode) ||
-            captionTracks[0].baseUrl;
+        return captionEvents.map((event: any) => ({
+          ...event,
+          text: (event.segs?.map((seg: any) => seg.utf8).join(" ") || "")
+            .replace(/\n/g, " ")
+            .replace(/'|"|\.{2,}|\<.*?\>|\{.*?\}|\[.*?\]/g, "")
+            .replace(/[^\x00-\x7F]/g, "")
+            .trim(),
+        }));
+      }
 
-          url += "&fmt=json3&tlang=" + langCode;
-          const captionEvents = (await (await fetch(url)).json()).events;
-
-          return captionEvents
-            .map((event: any) => ({
-              ...event,
-              text: event.segs?.map((seg: any) => seg.utf8).join(" ") || "",
-            }))
-            .map((event: any) =>
-              event.text
-                .replace(/\n/g, " ")
-                .replace(/'|"|\.{2,}|\<.*?\>|\{.*?\}|\[.*?\]/g, "")
-                .replace(/[^\x00-\x7F]/g, "")
-                .trim()
-            );
-        }
-
-        const subtitles = await scrapeYTsubtitles();
-        return subtitles.join(" ");
-      },
-      world: "MAIN",
+      const subtitles = await scrapeYTSubtitles();
+      return subtitles.join(" ");
     });
 
-    const scrapedSubs = result[0].result;
-    return scrapedSubs;
+    return result[0].result;
   } catch (error: any) {
     throw new Error(
       error.message || "An error occurred while fetching subtitles."
@@ -111,53 +94,46 @@ export async function getYTSubtitles() {
   }
 }
 
+// Function to fetch video tags
 export const getVideoTags = async () => {
   try {
-    const [currentTab] = await chrome.tabs.query({
-      active: true,
-      currentWindow: true,
-    });
-    const tabId = currentTab.id;
-    const url = currentTab.url;
-
-    if (
-      !tabId ||
-      !validateUrl(
-        toolSpecifications.find((tool) => tool.slug === "get_yt_sub")
-          ?.urlPattern,
-        url
-      )
-    ) {
-      throw new Error(
-        "Opened Website is not supported for getting YT Subtitles"
+    const result = await executeScriptInCurrentTab(async () => {
+      const responseText = await (await fetch(window.location.href)).text();
+      const captionsData = JSON.parse(
+        responseText.split("ytInitialPlayerResponse = ")[1].split(";var")[0]
       );
-    }
-    const result = await chrome.scripting.executeScript({
-      target: { tabId },
-      func: async () => {
-        async function scrapeTags() {
-          const responseText = await (await fetch(window.location.href)).text();
-          const captionsData = JSON.parse(
-            responseText.split("ytInitialPlayerResponse = ")[1].split(";var")[0]
-          );
-          return captionsData.videoDetails.keywords;
-        }
-
-        const tags = await scrapeTags();
-        return tags;
-      },
-      world: "MAIN",
+      return captionsData.videoDetails.keywords;
     });
 
-    const scrapedTags = result[0].result;
-    return scrapedTags;
+    return result[0].result;
   } catch (error) {
     console.error(error);
     throw error;
   }
 };
 
-export const toolSpecifications = [
+// Function to fetch video metadata
+export const getVideoMeta = async () => {
+  try {
+    const result = await executeScriptInCurrentTab(async () => {
+      const responseText = await (await fetch(window.location.href)).text();
+      const captionsData = JSON.parse(
+        responseText.split("ytInitialPlayerResponse = ")[1].split(";var")[0]
+      );
+      console.log(captionsData.videoDetails);
+      
+      return captionsData.videoDetails;
+    });
+
+    return result[0].result;
+  } catch (error) {
+    console.error(error);
+    throw error;
+  }
+};
+
+// Tool specifications
+export const toolSpecifications: any = [
   {
     id: nanoid(),
     name: "Get YT Subtitles",
@@ -168,7 +144,7 @@ export const toolSpecifications = [
       parameters: z.object({
         parameter_test: z.string().describe("Zod validated parameters"),
       }),
-      execute: getYTSubtitles, // mapped function to be executed
+      execute: getYTSubtitles,
     },
   },
   {
@@ -176,10 +152,21 @@ export const toolSpecifications = [
     name: "Get video tags",
     slug: "get_video_tags",
     urlPattern: ["https://www.youtube.com/*"],
-    description: "Get video subtitles",
+    description: "Get video tags",
     parameters: z.object({
       parameter_test: z.string().describe("Zod validated parameters"),
     }),
-    execute: getYTSubtitles, // mapped function to be executed
+    execute: getVideoTags,
+  },
+  {
+    id: nanoid(10),
+    name: "Get video meta",
+    slug: "get_video_meta",
+    urlPattern: ["https://www.youtube.com/*"],
+    description: "Get video metadata",
+    parameters: z.object({
+      parameter_test: z.string().describe("Zod validated parameters"),
+    }),
+    execute: getVideoMeta,
   },
 ];

@@ -1,10 +1,9 @@
 import React, { useState } from "react";
 import "../assets/css/App.css";
-import { toolSpecifications, getYTSubtitles, getVideoTags } from "../lib/utils"; // Import the function
+import { getYTSubtitles, getVideoTags, getVideoMeta } from "../lib/utils"; // Import the function
 
 const App = () => {
-  const [url, setUrl] = useState("");
-  const [subtitles, setSubtitles] = useState("");
+  const [subtitles, setSubtitles] = useState<any>("");
   const [tags, setTags] = useState<any>([]);
   const [error, setError] = useState("");
 
@@ -29,6 +28,16 @@ const App = () => {
     }
   };
 
+  const handlefetchMeta = () => {
+    setError(""); // Reset any previous errors
+    try {
+      const result = getVideoMeta();
+      console.log({ result });
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
   return (
     <div className="container mx-auto p-6 bg-gray-100 rounded-lg shadow-md">
       <h1 className="text-2xl font-bold mb-4">YouTube Tools</h1>
@@ -45,6 +54,12 @@ const App = () => {
           className="flex-1 bg-blue-500 text-white py-2 rounded hover:bg-blue-600 transition"
         >
           Fetch Video Tags
+        </button>
+        <button
+          onClick={handlefetchMeta}
+          className="flex-1 bg-blue-500 text-white py-2 rounded hover:bg-blue-600 transition"
+        >
+          Fetch Video Meta
         </button>
       </div>
 
