@@ -1,13 +1,12 @@
 export const fetchCaptionswithTime = async (langCode: string = "en"): Promise<Array<{ text: string; time: number }>> => {
   try {
-    const response = await fetch(window.location.href);
-    const responseText = await response.text();
-    const ytInitialPlayerResponse = responseText
-      .split("ytInitialPlayerResponse = ")[1]
-      ?.split(";var")[0];
+    let responseText = await (await fetch(window.location.href)).text();
 
-    const { captions } = JSON.parse(ytInitialPlayerResponse) || {};
-    const captionTracks = captions?.playerCaptionsTracklistRenderer?.captionTracks;
+    const captionsData = JSON.parse(
+      responseText.split("ytInitialPlayerResponse = ")[1].split(";var")[0]
+    );
+
+    const captionTracks = captionsData.captions.playerCaptionsTracklistRenderer?.captionTracks;
 
     const findCaptionUrl = (lang: string) =>
       captionTracks.find((track: any) => track.vssId.startsWith(lang))?.baseUrl;
@@ -35,14 +34,13 @@ export const fetchCaptionswithTime = async (langCode: string = "en"): Promise<Ar
 
 export const fetchCaptions = async (langCode: string = "en"): Promise<string[]> => {
   try {
-    const response = await fetch(window.location.href);
-    const responseText = await response.text();
-    const ytInitialPlayerResponse = responseText
-      .split("ytInitialPlayerResponse = ")[1]
-      ?.split(";var")[0];
+    let responseText = await (await fetch(window.location.href)).text();
 
-    const { captions } = JSON.parse(ytInitialPlayerResponse) || {};
-    const captionTracks = captions?.playerCaptionsTracklistRenderer?.captionTracks;
+    const captionsData = JSON.parse(
+      responseText.split("ytInitialPlayerResponse = ")[1].split(";var")[0]
+    );
+
+    const captionTracks = captionsData.captions.playerCaptionsTracklistRenderer?.captionTracks;
 
     const findCaptionUrl = (lang: string) =>
       captionTracks.find((track: any) => track.vssId.startsWith(lang))?.baseUrl;
@@ -81,6 +79,9 @@ export const fetchMetadata = async (langCode: string = "en"): Promise<any[]> => 
       responseText.split("ytInitialPlayerResponse = ")[1].split(";var")[0]
     );
 
+    const totalComments = document.querySelector('yt-formatted-string.count-text.style-scope.ytd-comments-header-renderer')?.textContent
+    const total_likes = document.querySelector('.YtLikeButtonViewModelHost')?.textContent
+    const timeAgo = document.querySelector('yt-formatted-string#info :nth-of-type(3)')?.textContent
     return [
       {
         author: captionsData.videoDetails.author,
@@ -89,7 +90,11 @@ export const fetchMetadata = async (langCode: string = "en"): Promise<any[]> => 
         lengthSeconds: captionsData.videoDetails.lengthSeconds,
         title: captionsData.videoDetails.title,
         videoId: captionsData.videoDetails.videoId,
-        viewCount: captionsData.videoDetails.viewCount
+        viewCount: captionsData.videoDetails.viewCount,
+        totalComments: totalComments ? parseInt(totalComments) : "No comments",
+        total_likes: total_likes ? parseInt(total_likes) : "No likes",
+        timeAgo: timeAgo ? timeAgo : "No timeAgo",
+        shortDescription: captionsData.videoDetails.shortDescription,
       }
     ]
   } catch (error) {

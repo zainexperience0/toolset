@@ -1,15 +1,13 @@
 # Project Name
 
-A template for basic chrome extensions
+A super toolset extension for different websites
 
-## Features 🎉
+# Features 🎉
 
-1. Popup Added
-2. Seperate Sidebar Added
-3. Seperate Options page
-4. Modify manifest.json file to customize your extension
-5. Tailwind capability 
-6. Types for chrome added
+ ## Youtube
+1. Getting transcript of video
+2. Getting Metadata
+3. Fetch subtitles with time
 
 
 
