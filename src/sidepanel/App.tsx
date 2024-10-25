@@ -59,6 +59,7 @@ const App = () => {
       "getting-transcript": <div>{result}</div>,
       "yt-metadata": <div>{JSON.stringify(result, null, 2)}</div>,
       "yt-subtitle-with-time": <div>{JSON.stringify(result, null, 2)}</div>,
+      "yt-comments": <div>{JSON.stringify(result, null, 2)}</div>,
     };
 
     return resultMapping[slug!] || null; // Render based on the slug

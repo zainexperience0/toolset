@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { nanoid } from "nanoid";
-import { fetchCaptions, fetchCaptionswithTime, fetchMetadata } from "./youtube";
+import { fetchCaptions, fetchCaptionswithTime, fetchComments,  fetchMetadata } from "./youtube";
 
 // Create a URL matching regex from patterns
 const urlPatternRegex = (patterns: string[]) =>
@@ -109,6 +109,18 @@ export const toolSpecifications = [
         }),
         execute: async () => {
           return await executeScriptInActiveTab(fetchMetadata);
+        },
+      },
+      {
+        id: nanoid(),
+        name: "Getting YT Comments",
+        slug: "yt-comments",
+        description: "Get a video's comments",
+        parameters: z.object({
+          parameter_test: z.string().describe("This is a test parameter"),
+        }),
+        execute: async () => {
+          return await executeScriptInActiveTab(fetchComments);
         },
       },
     ],
